@@ -1,0 +1,228 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  //output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Page {
+  id    Int    @id @default(autoincrement())
+  name  String
+  systemPageType String? @unique
+  layoutType String @default("single_column")
+  backgroundType  String? @default("color")
+  backgroundValue String? @default("#FFFFFF")
+  blocks Block[]
+}
+
+model Block {
+  id    Int    @id @default(autoincrement())
+  type  String
+  order Int
+  content Json @default("{}")
+
+  pageId Int
+  page    Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  parentId  Int?
+  parent    Block?   @relation("BlockChildren", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  children  Block[]  @relation("BlockChildren")
+
+  columnKey String?
+}
+
+model Product {
+  id    Int     @id @default(autoincrement())
+  name  String
+  price Float
+
+  calories Int?
+  allergens String?
+
+  pointCost Int?
+  imageUrl String?
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  
+  description String?
+  isAvailable Boolean @default(true)
+  happyHourPrice Float?
+
+  customizationOptionGroups OptionGroup[]
+  ingredientGroups        IngredientGroup[]
+
+  @@unique([name, categoryId], name: "name_categoryId")
+}
+
+model OptionGroup {
+  id           Int     @id @default(autoincrement())
+  name         String
+  minChoices   Int     @default(1)
+  maxChoices   Int     @default(1)
+  allowQuantity Boolean @default(false)
+
+  position     Int?
+
+  productId    Int
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  options      ProductOption[]
+
+  @@unique([productId, name])
+}
+
+model ProductOption {
+  id             Int     @id @default(autoincrement())
+  name           String
+  priceModifier  Float?
+
+  optionGroupId  Int
+  optionGroup    OptionGroup @relation(fields: [optionGroupId], references: [id], onDelete: Cascade)
+
+  subOptions     ProductSubOption[]
+
+  @@unique([optionGroupId, name])
+}
+
+model ProductSubOption {
+  id        Int     @id @default(autoincrement())
+  name      String
+
+  optionId  Int
+  option    ProductOption @relation(fields: [optionId], references: [id])
+}
+
+model IngredientGroup {
+  id        Int     @id @default(autoincrement())
+  name      String
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  items     Ingredient[]
+}
+
+model Ingredient {
+  id            Int     @id @default(autoincrement())
+  name          String
+  isRemovable   Boolean @default(true)
+  addPrice      Float?
+
+  ingredientGroupId Int
+  ingredientGroup   IngredientGroup @relation(fields: [ingredientGroupId], references: [id])
+}
+
+model PromoCode {
+  id    Int     @id @default(autoincrement())
+  code  String  @unique
+  discountType String
+  value Float
+}
+
+model Order {
+  id        Int      @id @default(autoincrement())
+  orderNumber Int?
+  createdAt DateTime @default(now())
+  total     Float
+  status    String   @default("AWAITING_PAYMENT")
+  orderType String   @default("a-emporter")
+
+  items     OrderItem[]
+
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id])
+
+  productName String
+  quantity    Int
+  unitPrice   Float
+
+  customizations String?
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  phone     String   @unique
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  isBlacklisted Boolean @default(false)
+
+  orders    Order[]
+}
+
+model Category {
+  id    Int     @id @default(autoincrement())
+  name  String  @unique
+
+  position Int?
+
+  products Product[]
+}
+
+model License {
+  id         String   @id
+  clientName String
+  isActive   Boolean  @default(true)
+
+  expiresAt  DateTime?
+
+  allowedDomain String?
+
+  tierId     Int
+  tier       LicenseTier @relation(fields: [tierId], references: [id])
+
+  kiosks     Kiosk[]
+}
+
+model Kiosk {
+  id        String   @id @default(cuid())
+  name      String
+
+  licenseId String
+  license   License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  
+  lastHeartbeat DateTime @updatedAt
+  inactivityTimeoutEnabled Boolean @default(true)
+
+  forceLogout Boolean @default(false)
+  forceRefresh Boolean @default(false)
+  isBlacklisted Boolean @default(false)
+}
+
+model LicenseTier {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  maxKiosks Int
+
+  hasHappyHour Boolean @default(false)
+
+  licenses  License[]
+}
+
+model Setting {
+  id    String @id
+  value String
+}
+
+model AdminUser {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
